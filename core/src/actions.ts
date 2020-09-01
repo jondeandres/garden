@@ -1123,7 +1123,7 @@ export class ActionRouter implements TypeGuard {
       async (...args: any[]) => {
         const result = await handler.apply(plugin, args)
         if (result === undefined) {
-          throw new PluginError(`Got empty response from ${actionType} handler on ${pluginName}`, {
+          throw new PluginError(`Got empty response from ${actionType} handler on ${pluginName} provider`, {
             args,
             actionType,
             pluginName,
@@ -1155,11 +1155,14 @@ export class ActionRouter implements TypeGuard {
       <ModuleActionHandlers[T]>(async (...args: any[]) => {
         const result = await handler.apply(plugin, args)
         if (result === undefined) {
-          throw new PluginError(`Got empty response from ${moduleType}.${actionType} handler on ${pluginName}`, {
-            args,
-            actionType,
-            pluginName,
-          })
+          throw new PluginError(
+            `Got empty response from ${moduleType}.${actionType} handler on ${pluginName} provider`,
+            {
+              args,
+              actionType,
+              pluginName,
+            }
+          )
         }
         return validateSchema(result, schema, {
           context: `${actionType} ${moduleType} output from provider ${pluginName}`,
