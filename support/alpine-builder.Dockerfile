@@ -9,28 +9,38 @@ RUN apk add --no-cache \
   libstdc++ \
   openssh \
   openssl \
-  tar
+  tar \
+  python \
+  make \
+  gcc \
+  g++
 
 WORKDIR /tmp/pkg
 
 # Pre-fetch the node12 binary for pkg
-RUN yarn add pkg@4.5.1 && \
+RUN --mount=type=cache,target=/root/.yarn yarn add pkg@4.5.1 && \
   node_modules/.bin/pkg-fetch node12 alpine x64
 
-# Add all the packages
+# Install external dependencies
+ADD cli/package.json cli/yarn.lock /tmp/cli/
+ADD core/package.json /tmp/core/
+ADD sdk/package.json /tmp/sdk/
+# This is prepared by the build script to just include the package.json files, so that we can install 3rd party deps without issues
+ADD _plugins /tmp/plugins
+
+WORKDIR /tmp/cli
+
+RUN --mount=type=cache,target=/root/.yarn yarn --frozen-lockfile
+
+# Add all the package code
 ADD cli /tmp/cli
 ADD core /tmp/core
 ADD plugins /tmp/plugins
 ADD sdk /tmp/sdk
 
-# Install the CLI deps
-WORKDIR /tmp/cli
-
-RUN apk add --no-cache python make gcc g++ --virtual .build-deps && \
-  yarn && \
+RUN --mount=type=cache,target=/root/.yarn yarn --force && \
   # Fix for error in this particular package
-  rm -rf node_modules/es-get-iterator/test && \
-  apk del .build-deps
+  rm -rf node_modules/es-get-iterator/test
 
 ADD static /garden/static
 
@@ -38,4 +48,4 @@ ADD static /garden/static
 RUN mkdir -p /garden \
   && node_modules/.bin/pkg --target node12-alpine-x64 . --output /garden/garden \
   && cp node_modules/better-sqlite3/build/Release/better_sqlite3.node /garden \
-  && /garden/garden version
+  && /garden/garden version # make sure it works

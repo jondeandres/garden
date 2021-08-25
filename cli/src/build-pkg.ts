@@ -10,7 +10,7 @@ import chalk from "chalk"
 import { resolve, relative, join } from "path"
 import Bluebird from "bluebird"
 import { STATIC_DIR, GARDEN_CLI_ROOT, GARDEN_CORE_ROOT } from "@garden-io/core/build/src/constants"
-import { remove, mkdirp, copy, writeFile } from "fs-extra"
+import { remove, mkdirp, copy, writeFile, readdir, pathExists } from "fs-extra"
 import { exec, getPackageVersion } from "@garden-io/core/build/src/util/util"
 import { randomString } from "@garden-io/core/build/src/util/string"
 import { pick } from "lodash"
@@ -27,6 +27,8 @@ const pkgPath = resolve(repoRoot, "cli", "node_modules", ".bin", "pkg")
 const pkgFetchPath = resolve(repoRoot, "node_modules", ".bin", "pkg-fetch")
 const distPath = resolve(repoRoot, "dist")
 const sqliteBinFilename = "better_sqlite3.node"
+
+const DEBUG = process.env.DEBUG === "true"
 
 // tslint:disable: no-console
 
@@ -194,14 +196,31 @@ async function pkgAlpine({ targetName, version }: TargetHandlerParams) {
 
   await copy(resolve(supportDir, ".dockerignore"), resolve(tmpDir, ".dockerignore"))
 
-  await exec("docker", [
-    "build",
-    "-t",
-    imageName,
-    "-f",
-    resolve(repoRoot, "support", "alpine-builder.Dockerfile"),
-    tmpDir,
-  ])
+  // Prepare a directory with just the package.json files for the plugins, to optimize the image build
+  const pluginsTmpPath = resolve(tmpDir, "plugins")
+  const plugins = await readdir(pluginsTmpPath)
+
+  const pluginsPackageTmpPath = resolve(tmpDir, "_plugins")
+
+  await Bluebird.map(plugins, async (pluginName) => {
+    const packageJsonPath = resolve(pluginsTmpPath, pluginName, "package.json")
+    if (await pathExists(packageJsonPath)) {
+      const pluginPackagePath = resolve(pluginsPackageTmpPath, pluginName)
+      await mkdirp(pluginPackagePath)
+      await copy(packageJsonPath, resolve(pluginPackagePath, "package.json"))
+    }
+  })
+
+  // Run the build
+  await exec(
+    "docker",
+    ["build", "-t", imageName, "-f", resolve(repoRoot, "support", "alpine-builder.Dockerfile"), tmpDir],
+    {
+      env: { DOCKER_BUILDKIT: "1" },
+      stdout: DEBUG ? process.stdout : undefined,
+      stderr: DEBUG ? process.stderr : undefined,
+    }
+  )
 
   try {
     console.log(` - ${targetName} -> docker create`)
