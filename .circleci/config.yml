@@ -591,7 +591,7 @@ jobs:
             echo "********* env prepped! *********"
       - update_nodejs
       # Note: We can't use npm_install here because the cache conflicts
-      - run: yarn
+      - run: yarn --force
       - run: yarn run build
       - run:
           name: Integ tests
@@ -646,7 +646,7 @@ jobs:
             sudo apt install nfs-common conntrack
       - update_nodejs
       # Note: We can't use npm_install here because the cache conflicts
-      - run: yarn
+      - run: yarn --force
       - run: yarn run build
       - run:
           name: Install Minikube Executable
